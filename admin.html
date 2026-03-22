@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin QR Scanner</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #f4f4f9; }
+        #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 8px; overflow: hidden; background: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        button { margin-top: 20px; padding: 12px 24px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #result { margin-top: 20px; font-size: 18px; font-weight: bold; color: #333; }
+        .success { color: green !important; }
+        .error { color: red !important; }
+    </style>
+</head>
+<body>
+
+    <h2>Scan Display QR</h2>
+    
+    <div id="reader"></div>
+    
+    <p id="result">Waiting for scan...</p>
+    <button id="rescan-btn" style="display:none;" onclick="startScanner()">Scan Another Display</button>
+
+    <script>
+        let html5QrcodeScanner;
+        // Your backend server IP
+        const SERVER_URL = 'http://192.168.1.13:3000/api/pair-display';
+
+        function onScanSuccess(decodedText) {
+            // 1. Stop the camera once a code is found
+            html5QrcodeScanner.clear();
+            const resultText = document.getElementById('result');
+            resultText.innerText = "Code found: " + decodedText + ". Linking...";
+            resultText.className = ""; // Reset colors
+            document.getElementById('rescan-btn').style.display = "inline-block";
+
+            // 2. Send the scanned code to your backend server
+            fetch(SERVER_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pairingCode: decodedText,
+                    adminUserId: 'admin_123'
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    resultText.innerText = "✅ Success! Display linked.";
+                    resultText.className = "success";
+                } else {
+                    resultText.innerText = "❌ Error: " + data.message;
+                    resultText.className = "error";
+                }
+            })
+            .catch(error => {
+                console.error(error);
+                resultText.innerText = "❌ Network Error. Is the backend running?";
+                resultText.className = "error";
+            });
+        }
+
+        function startScanner() {
+            document.getElementById('result').innerText = "Waiting for scan...";
+            document.getElementById('result').className = "";
+            document.getElementById('rescan-btn').style.display = "none";
+            
+            // Initialize the camera scanner
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader", { fps: 10, qrbox: {width: 250, height: 250} }, false);
+            html5QrcodeScanner.render(onScanSuccess);
+        }
+
+        // Start the camera automatically when the page loads
+        startScanner();
+    </script>
+</body>
+</html>
