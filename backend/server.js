@@ -4,24 +4,24 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const db = require('./database');
-const multer = require('multer'); // NEW: For file uploads
+const multer = require('multer'); 
 const path = require('path');
-const fs = require('fs'); // NEW: To create folders
+const fs = require('fs'); 
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// NEW: Automatically create an 'uploads' folder if it doesn't exist
+// Automatically create an 'uploads' folder if it doesn't exist
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
 
-// NEW: Tell the server to let TVs access the files inside the 'uploads' folder
+// Tell the server to let TVs access the files inside the 'uploads' folder
 app.use('/uploads', express.static('uploads'));
 
-// NEW: Configure how 'multer' saves the files
+// Configure how 'multer' saves the files
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/');
@@ -66,7 +66,7 @@ app.post('/api/pair-display', (req, res) => {
     });
 });
 
-// 2. NEW: Get a list of all paired displays (so we can choose which one to send the ad to)
+// 2. Get a list of all paired displays
 app.get('/api/displays', (req, res) => {
     db.all(`SELECT * FROM displays WHERE is_paired = 1`, [], (err, rows) => {
         if (err) return res.status(500).json({ success: false });
@@ -74,34 +74,35 @@ app.get('/api/displays', (req, res) => {
     });
 });
 
-// 3. NEW: Upload an Ad and add it to the playlist
-app.post('/api/upload', upload.single('mediaFile'), (req, res) => {
-    const displayId = req.body.displayId;
+// 3. NEW: Upload Multiple Ads & Schedule Them
+app.post('/api/upload', upload.array('mediaFiles', 20), (req, res) => {
+    const { displayId, startDate, endDate, startTime, endTime } = req.body;
     
-    if (!req.file || !displayId) {
-        return res.status(400).json({ success: false, message: 'Missing file or display ID.' });
+    if (!req.files || req.files.length === 0 || !displayId) {
+        return res.status(400).json({ success: false, message: 'Missing files or display ID.' });
     }
 
-    // The URL the TV will use to play the video (e.g., /uploads/167890.mp4)
-    const mediaUrl = `/uploads/${req.file.filename}`;
+    let completed = 0;
     
-    // Determine if it's a video or image based on the file extension
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    const mediaType = (ext === '.mp4' || ext === '.webm') ? 'video' : 'image';
+    req.files.forEach((file, index) => {
+        const mediaUrl = `/uploads/${file.filename}`;
+        const ext = path.extname(file.originalname).toLowerCase();
+        const mediaType = (ext === '.mp4' || ext === '.webm') ? 'video' : 'image';
 
-    // Insert it into the database playlist
-    const query = `INSERT INTO playlist_items (display_id, media_url, media_type, play_order) VALUES (?, ?, ?, 1)`;
-    db.run(query, [displayId, mediaUrl, mediaType], function(err) {
-        if (err) return res.status(500).json({ success: false, message: 'Database error.' });
-
-        // Tell the specific TV to refresh its playlist!
-        db.get(`SELECT socket_id FROM displays WHERE id = ?`, [displayId], (err, display) => {
-            if (display && display.socket_id) {
-                io.to(display.socket_id).emit('update_playlist');
+        const query = `INSERT INTO playlist_items 
+            (display_id, media_url, media_type, play_order, start_date, end_date, start_time, end_time) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+            
+        db.run(query, [displayId, mediaUrl, mediaType, index + 1, startDate, endDate, startTime, endTime], (err) => {
+            completed++;
+            if (completed === req.files.length) {
+                // Notify TV to refresh once all files are saved
+                db.get(`SELECT socket_id FROM displays WHERE id = ?`, [displayId], (err, display) => {
+                    if (display && display.socket_id) io.to(display.socket_id).emit('update_playlist');
+                });
+                res.json({ success: true, message: `Successfully scheduled ${req.files.length} ads!` });
             }
         });
-
-        res.json({ success: true, message: 'Ad uploaded successfully!' });
     });
 });
 
@@ -114,7 +115,7 @@ app.get('/api/playlist/:displayId', (req, res) => {
     });
 });
 
-// --- NEW MANAGEMENT APIs ---
+// --- MANAGEMENT APIs ---
 
 // 1. Silent Reconnect for refreshed TVs
 app.post('/api/reconnect', (req, res) => {
@@ -124,7 +125,7 @@ app.post('/api/reconnect', (req, res) => {
     });
 });
 
-// 2. Rename a display (e.g., "Phaltan Entrance TV")
+// 2. Rename a display (e.g., "Main Entrance TV")
 app.post('/api/rename-display', (req, res) => {
     const { displayId, newName } = req.body;
     db.run(`UPDATE displays SET display_name = ? WHERE id = ?`, [newName, displayId], (err) => {
@@ -150,6 +151,8 @@ app.post('/api/unpair-display', (req, res) => {
     });
 });
 
-server.listen(3000, () => {
-    console.log('Signage Server running on port 3000');
+// FIXED: Let Render choose the port so it doesn't crash!
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Signage Server running on port ${PORT}`);
 });
