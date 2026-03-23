@@ -98,7 +98,7 @@
                 });
         }
 
-        function uploadAd() {
+       function uploadAd() {
             const displayId = document.getElementById('displaySelect').value;
             const fileInput = document.getElementById('mediaFile');
             const statusText = document.getElementById('upload-status');
@@ -108,7 +108,7 @@
                 statusText.style.color = "red"; return;
             }
 
-            statusText.innerText = `⏳ Uploading ${fileInput.files.length} files...`;
+            statusText.innerText = `⏳ Starting upload... 0%`;
             statusText.style.color = "black";
 
             const formData = new FormData();
@@ -122,19 +122,48 @@
                 formData.append('mediaFiles', fileInput.files[i]);
             }
 
-            fetch(SERVER_URL + '/api/upload', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    statusText.innerText = "✅ " + data.message;
-                    statusText.style.color = "green";
-                    fileInput.value = ""; 
-                    setTimeout(() => { statusText.innerText = ""; }, 5000);
+            // Create a new request that can track upload progress!
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', SERVER_URL + '/api/upload', true);
+
+            // TRACK PROGRESS: Update the text with the live percentage
+            xhr.upload.onprogress = function(event) {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    statusText.innerText = `⏳ Uploading... ${percentComplete}%`;
+                }
+            };
+
+            // WHEN FINISHED:
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success) {
+                        statusText.innerText = "✅ " + data.message;
+                        statusText.style.color = "green";
+                        fileInput.value = ""; 
+                        setTimeout(() => { statusText.innerText = ""; }, 5000);
+                    } else {
+                        statusText.innerText = "❌ Error: " + data.message;
+                        statusText.style.color = "red";
+                    }
                 } else {
-                    statusText.innerText = "❌ Error: " + data.message;
+                    statusText.innerText = "❌ Server Error. File might be too large for free tier.";
                     statusText.style.color = "red";
                 }
-            });
+            };
+
+            xhr.onerror = function() {
+                statusText.innerText = "❌ Network Error. Check your connection.";
+                statusText.style.color = "red";
+            };
+
+            xhr.send(formData);
+        }
+            statusText.innerText = `⏳ Uploading ${fileInput.files.length} files...`;
+            statusText.style.color = "black";
+
+           
         }
 
         function renameScreen(id) {
