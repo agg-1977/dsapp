@@ -8,49 +8,46 @@
         body { font-family: sans-serif; background: #f4f4f9; padding: 20px; max-width: 600px; margin: 0 auto; color: #333; }
         h1 { text-align: center; color: #2c3e50; font-size: 1.8rem; margin-bottom: 30px; }
         h2 { font-size: 1.2rem; color: #444; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-top: 0;}
-        
         .section-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
-        
-        /* Upload Form Styles */
-        select, input[type="file"], input[type="text"] { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+        select, input[type="file"], input[type="text"], input[type="date"], input[type="time"] { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; width: 100%; }
         button:hover { opacity: 0.9; }
-        
         .btn-upload { background: #28a745; font-size: 1.1rem; }
         .btn-save { background: #007bff; width: auto; flex-grow: 1; }
         .btn-logout { background: #dc3545; width: auto; }
-        
         #upload-status { margin-top: 10px; font-weight: bold; text-align: center; }
-
-        /* Screen List Styles */
         .screen-item { background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
         .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .status-dot { color: #28a745; font-size: 0.8rem; }
         .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
-        
-        /* Quick Links */
         .nav-links { text-align: center; margin-bottom: 20px; }
         .nav-links a { color: #007bff; text-decoration: none; font-weight: bold; }
+        .flex-row { display: flex; gap: 10px; }
+        .flex-col { flex: 1; }
     </style>
 </head>
 <body>
 
     <h1>Ashok Jewellers<br><small style="font-size: 1rem; color: #666;">Digital Signage Command Center</small></h1>
 
-    <div class="nav-links">
-        <a href="admin.html">📷 Pair a New Screen</a>
-    </div>
+    <div class="nav-links"><a href="admin.html">📷 Pair a New Screen</a></div>
 
     <div class="section-card">
-        <h2>⬆️ Push Ad to Screen</h2>
-        
-        <label for="displaySelect">1. Select Target Screen:</label>
-        <select id="displaySelect">
-            <option value="">Loading screens...</option>
-        </select>
+        <h2>⬆️ Schedule & Push Ads</h2>
+        <label>1. Select Target Screen:</label>
+        <select id="displaySelect"><option value="">Loading...</option></select>
 
-        <label for="mediaFile">2. Select Video or Image:</label>
-        <input type="file" id="mediaFile" accept="video/mp4, image/jpeg, image/png">
+        <label>2. Select Files (Choose multiple!):</label>
+        <input type="file" id="mediaFile" accept="video/mp4, image/jpeg, image/png" multiple>
+
+        <div class="flex-row">
+            <div class="flex-col"><label>Start Date (Optional)</label><input type="date" id="startDate"></div>
+            <div class="flex-col"><label>End Date (Optional)</label><input type="date" id="endDate"></div>
+        </div>
+        <div class="flex-row">
+            <div class="flex-col"><label>Start Time (Optional)</label><input type="time" id="startTime"></div>
+            <div class="flex-col"><label>End Time (Optional)</label><input type="time" id="endTime"></div>
+        </div>
 
         <button class="btn-upload" onclick="uploadAd()">Push to Screen</button>
         <p id="upload-status"></p>
@@ -67,34 +64,23 @@
         // ==========================================
         const SERVER_URL = 'https://digital-sinage.onrender.com'; 
 
-        // Load data into both the dropdown and the management list simultaneously
         function loadDashboardData() {
             fetch(SERVER_URL + '/api/displays')
                 .then(res => res.json())
                 .then(data => {
                     const select = document.getElementById('displaySelect');
                     const list = document.getElementById('screen-list');
-                    
-                    select.innerHTML = '';
-                    list.innerHTML = '';
+                    select.innerHTML = ''; list.innerHTML = '';
 
                     if (data.displays.length === 0) {
                         select.innerHTML = '<option value="">No screens paired</option>';
-                        list.innerHTML = '<p style="color: #666; text-align: center;">No screens are currently linked. Click "Pair a New Screen" above.</p>';
+                        list.innerHTML = '<p style="color: #666; text-align: center;">No screens are currently linked.</p>';
                         return;
                     }
 
                     data.displays.forEach(display => {
-                        // Figure out the name (use custom name, or default to ID)
                         const displayName = display.display_name ? display.display_name : `Screen ${display.id}`;
-                        
-                        // 1. Add to Upload Dropdown
-                        const option = document.createElement('option');
-                        option.value = display.id;
-                        option.textContent = displayName;
-                        select.appendChild(option);
-
-                        // 2. Add to Management List
+                        select.innerHTML += `<option value="${display.id}">${displayName}</option>`;
                         list.innerHTML += `
                             <div class="screen-item">
                                 <div class="screen-header">
@@ -102,85 +88,72 @@
                                     <span class="status-dot">🟢 Online (ID: ${display.id})</span>
                                 </div>
                                 <div class="action-row">
-                                    <input type="text" id="name-${display.id}" value="${display.display_name || ''}" placeholder="Rename (e.g., Main Counter)">
+                                    <input type="text" id="name-${display.id}" value="${display.display_name || ''}" placeholder="Rename (e.g., Ring Counter)">
                                     <button class="btn-save" onclick="renameScreen(${display.id})">Save</button>
                                     <button class="btn-logout" onclick="logoutScreen(${display.id})">Logout</button>
                                 </div>
                             </div>
                         `;
                     });
-                })
-                .catch(err => console.error("Error loading dashboard", err));
+                });
         }
 
-        // Handle the media upload
         function uploadAd() {
             const displayId = document.getElementById('displaySelect').value;
             const fileInput = document.getElementById('mediaFile');
             const statusText = document.getElementById('upload-status');
 
             if (!displayId || fileInput.files.length === 0) {
-                statusText.innerText = "❌ Please select a screen and a file.";
-                statusText.style.color = "red";
-                return;
+                statusText.innerText = "❌ Please select a screen and files.";
+                statusText.style.color = "red"; return;
             }
 
-            statusText.innerText = "⏳ Uploading to showroom...";
+            statusText.innerText = `⏳ Uploading ${fileInput.files.length} files...`;
             statusText.style.color = "black";
 
             const formData = new FormData();
             formData.append('displayId', displayId);
-            formData.append('mediaFile', fileInput.files[0]);
+            formData.append('startDate', document.getElementById('startDate').value);
+            formData.append('endDate', document.getElementById('endDate').value);
+            formData.append('startTime', document.getElementById('startTime').value);
+            formData.append('endTime', document.getElementById('endTime').value);
 
-            fetch(SERVER_URL + '/api/upload', {
-                method: 'POST',
-                body: formData 
-            })
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('mediaFiles', fileInput.files[i]);
+            }
+
+            fetch(SERVER_URL + '/api/upload', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    statusText.innerText = "✅ Upload Successful! Ad is now playing.";
+                    statusText.innerText = "✅ " + data.message;
                     statusText.style.color = "green";
-                    fileInput.value = ""; // Clear the file input
-                    
-                    // Clear the success message after 4 seconds
-                    setTimeout(() => { statusText.innerText = ""; }, 4000);
+                    fileInput.value = ""; 
+                    setTimeout(() => { statusText.innerText = ""; }, 5000);
                 } else {
                     statusText.innerText = "❌ Error: " + data.message;
                     statusText.style.color = "red";
                 }
-            })
-            .catch(err => {
-                statusText.innerText = "❌ Network Error.";
-                statusText.style.color = "red";
             });
         }
 
-        // Rename a screen
         function renameScreen(id) {
             const newName = document.getElementById(`name-${id}`).value;
             fetch(SERVER_URL + '/api/rename-display', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ displayId: id, newName: newName })
-            }).then(() => {
-                // Instantly reload the dashboard to update the dropdown and list text!
-                loadDashboardData(); 
-            });
+            }).then(() => loadDashboardData());
         }
 
-        // Unpair a screen
         function logoutScreen(id) {
-            if(confirm("Are you sure you want to logout this screen? It will delete its playlist.")) {
+            if(confirm("Are you sure? This will clear the screen's playlist and return it to the QR code.")) {
                 fetch(SERVER_URL + '/api/unpair-display', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ displayId: id })
-                }).then(() => loadDashboardData()); // Reload the dashboard
+                }).then(() => loadDashboardData()); 
             }
         }
 
-        // Load everything when the page opens
         window.onload = loadDashboardData;
     </script>
 </body>
