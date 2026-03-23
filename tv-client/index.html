@@ -3,109 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Showroom Display</title>
-    
+    <title>Ashok Jewellers - Display</title>
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; font-family: sans-serif; color: white; }
-        
-        /* The QR Code Pairing Screen */
         #pairing-screen { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; background: #1a1a2e; }
         #qrcode { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         h1 { font-size: 3rem; margin: 0; }
         p { font-size: 1.5rem; color: #aaa; }
-
-        /* The Media Player Screen */
         #media-screen { display: none; width: 100%; height: 100%; justify-content: center; align-items: center; background: black; }
         #ad-video, #ad-image { max-width: 100%; max-height: 100%; display: none; }
-        
-        /* Default logo if playlist is empty */
-        #waiting-msg { display: none; font-size: 2rem; color: #555; }
+        #waiting-msg { display: none; font-size: 2.5rem; color: #888; text-align: center; }
     </style>
 </head>
 <body>
 
     <div id="pairing-screen">
         <div id="qrcode"></div>
-        <h1>Scan to Link Display</h1>
+        <h1>Ashok Jewellers</h1>
         <p id="code-text">Connecting to server...</p>
     </div>
 
     <div id="media-screen">
         <video id="ad-video" autoplay muted></video>
-        <img id="ad-image" src="" alt="Advertisement">
-        <h2 id="waiting-msg">Ashok Jewellers - Waiting for ads...</h2>
+        <img id="ad-image" src="">
+        <h2 id="waiting-msg">Ashok Jewellers<br><span style="font-size: 1.5rem;">Awaiting Scheduled Broadcast...</span></h2>
     </div>
 
     <script>
         // ==========================================
-        // RENDER URL:
+        // PASTE YOUR RENDER URL RIGHT HERE:
         // ==========================================
-        const SERVER_URL = 'https://digital-sinage.onrender.com'; // Paste your Render URL here!
+        const SERVER_URL = 'https://digital-sinage.onrender.com'; 
         
-        // 1. Check the TV's memory for a saved ID
         let displayId = localStorage.getItem('signage_display_id');
         let playlist = [];
         let currentAdIndex = 0;
 
         const socket = io(SERVER_URL);
 
-        // 2. When the TV connects to the server
         socket.on('connect', () => {
             if (displayId) {
-                // TV REMEMBERS! Skip the QR code and silently reconnect
                 document.getElementById('pairing-screen').style.display = 'none';
                 document.getElementById('media-screen').style.display = 'flex';
-                
                 fetch(`${SERVER_URL}/api/reconnect`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ displayId: displayId, socketId: socket.id })
                 }).then(() => fetchPlaylist());
             }
         });
 
-        // 3. Server sends pairing code (Only show if TV has no memory)
         socket.on('pairing_code', (data) => {
             if (!displayId) {
-                document.getElementById('code-text').innerText = "Code: " + data.code;
+                document.getElementById('code-text').innerText = "Scan to Link Display | Code: " + data.code;
                 document.getElementById('qrcode').innerHTML = ""; 
                 new QRCode(document.getElementById("qrcode"), { text: data.code, width: 250, height: 250 });
             }
         });
 
-        // 4. Phone successfully pairs the screen
         socket.on('paired_success', (data) => {
             displayId = data.displayId;
-            // SAVE TO MEMORY SO IT SURVIVES REFRESHES!
             localStorage.setItem('signage_display_id', displayId); 
-            
             document.getElementById('pairing-screen').style.display = 'none';
             document.getElementById('media-screen').style.display = 'flex';
             fetchPlaylist();
         });
 
-        // 5. Admin clicks "Logout" from their phone
         socket.on('force_logout', () => {
-            localStorage.removeItem('signage_display_id'); // Wipe memory
-            location.reload(); // Restart the screen to show QR code
+            localStorage.removeItem('signage_display_id'); 
+            location.reload(); 
         });
 
         socket.on('update_playlist', () => fetchPlaylist());
 
-        // --- MEDIA PLAYER LOGIC ---
         function fetchPlaylist() {
             fetch(`${SERVER_URL}/api/playlist/${displayId}`)
-                .then(response => response.json())
+                .then(res => res.json())
                 .then(data => {
                     if (data.success) {
                         playlist = data.playlist;
                         currentAdIndex = 0;
                         playNextAd();
                     }
-                }).catch(err => console.error(err));
+                });
+        }
+
+        function isAdActive(ad) {
+            if (!ad.start_date && !ad.start_time) return true; 
+            const now = new Date();
+            const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD local time
+            const timeStr = now.toTimeString().split(' ')[0].substring(0, 5); // HH:MM local time
+            
+            if (ad.start_date && todayStr < ad.start_date) return false;
+            if (ad.end_date && todayStr > ad.end_date) return false;
+            if (ad.start_time && timeStr < ad.start_time) return false;
+            if (ad.end_time && timeStr > ad.end_time) return false;
+            return true; 
         }
 
         function playNextAd() {
@@ -117,18 +111,31 @@
             imgEl.style.display = 'none';
             waitingEl.style.display = 'none';
 
-            if (playlist.length === 0) {
+            let attempts = 0;
+            let ad = null;
+            
+            while (attempts < playlist.length) {
+                const potentialAd = playlist[currentAdIndex];
+                if (isAdActive(potentialAd)) {
+                    ad = potentialAd;
+                    break;
+                }
+                currentAdIndex = (currentAdIndex + 1) % playlist.length;
+                attempts++;
+            }
+
+            if (!ad) {
                 waitingEl.style.display = 'block';
+                setTimeout(playNextAd, 10000); // Check again in 10 seconds
                 return;
             }
 
-            const ad = playlist[currentAdIndex];
             const fullMediaUrl = SERVER_URL + ad.media_url;
 
             if (ad.media_type === 'video') {
                 videoEl.src = fullMediaUrl;
                 videoEl.style.display = 'block';
-                videoEl.play().catch(e => console.log("Autoplay blocked, waiting for interaction"));
+                videoEl.play().catch(e => console.log("Autoplay blocked"));
                 videoEl.onended = () => {
                     currentAdIndex = (currentAdIndex + 1) % playlist.length;
                     playNextAd();
@@ -143,3 +150,5 @@
             }
         }
     </script>
+</body>
+</html>
