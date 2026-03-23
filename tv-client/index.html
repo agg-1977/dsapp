@@ -1,64 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Digital Signage Player</title>
-    <style>
-        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #111; color: white; font-family: sans-serif; margin: 0; }
-        #app-container { text-align: center; }
-        #qr-container { background: white; padding: 20px; border-radius: 10px; margin-top: 20px; display: inline-block;}
-        #ad-player { display: none; width: 100vw; height: 100vh; object-fit: cover; }
-    </style>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Showroom Display</title>
+    
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; font-family: sans-serif; color: white; }
+        
+        /* The QR Code Pairing Screen */
+        #pairing-screen { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; background: #1a1a2e; }
+        #qrcode { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        h1 { font-size: 3rem; margin: 0; }
+        p { font-size: 1.5rem; color: #aaa; }
+
+        /* The Media Player Screen */
+        #media-screen { display: none; width: 100%; height: 100%; justify-content: center; align-items: center; background: black; }
+        #ad-video, #ad-image { max-width: 100%; max-height: 100%; display: none; }
+        
+        /* Default logo if playlist is empty */
+        #waiting-msg { display: none; font-size: 2rem; color: #555; }
+    </style>
 </head>
 <body>
 
-    <div id="app-container">
-        <h1>Add this Display</h1>
-        <p>Scan the QR code with your Admin App</p>
-        <div id="qr-container"></div>
-        <h2 id="pairing-text">Loading...</h2>
+    <div id="pairing-screen">
+        <div id="qrcode"></div>
+        <h1>Scan to Link Display</h1>
+        <p id="code-text">Connecting to server...</p>
     </div>
 
-    <video id="ad-player" autoplay loop muted>
-        <source src="" type="video/mp4">
-    </video>
+    <div id="media-screen">
+        <video id="ad-video" autoplay muted></video>
+        <img id="ad-image" src="" alt="Advertisement">
+        <h2 id="waiting-msg">Ashok Jewellers - Waiting for ads...</h2>
+    </div>
 
     <script>
-        // Connect to your Node.js backend
-        const socket = io('http://localhost:3000'); 
+        // ==========================================
+        // PASTE YOUR RENDER URL RIGHT HERE:
+        // ==========================================
+        const SERVER_URL = 'https://digital-sinage.onrender.com';
         
-        const appContainer = document.getElementById('app-container');
-        const adPlayer = document.getElementById('ad-player');
-        const pairingText = document.getElementById('pairing-text');
-        const qrContainer = document.getElementById('qr-container');
+        let displayId = null;
+        let playlist = [];
+        let currentAdIndex = 0;
 
-        // Listen for the pairing code from the server
+        // Connect to your live Render server!
+        const socket = io(SERVER_URL);
+
+        // 1. Server sends the pairing code
         socket.on('pairing_code', (data) => {
-            pairingText.innerText = `Code: ${data.code}`;
-            qrContainer.innerHTML = ''; // Clear old QR
-            
-            // Generate the visual QR code containing the pairing string
-            new QRCode(qrContainer, {
+            document.getElementById('code-text').innerText = "Code: " + data.code;
+            document.getElementById('qrcode').innerHTML = ""; 
+            new QRCode(document.getElementById("qrcode"), {
                 text: data.code,
-                width: 200,
-                height: 200
+                width: 250,
+                height: 250
             });
         });
 
-        // Listen for the success message when the mobile app scans it
+        // 2. Phone successfully pairs the screen
         socket.on('paired_success', (data) => {
-            console.log('Paired!', data);
-            
-            // 1. Hide the QR code screen
-            appContainer.style.display = 'none';
-            
-            // 2. Show the media player and start playing ads
-            adPlayer.style.display = 'block';
-            
-            // In a real app, you would now fetch the ad schedule from the database using data.displayId
-            adPlayer.src = 'https://www.w3schools.com/html/mov_bbb.mp4'; // Example video
+            displayId = data.displayId;
+            document.getElementById('pairing-screen').style.display = 'none';
+            document.getElementById('media-screen').style.display = 'flex';
+            fetchPlaylist(); // Immediately look for ads
         });
+
+        // 3. Phone uploaded a new ad! Server says to refresh.
+        socket.on('update_playlist', () => {
+            console.log("New ad received! Refreshing playlist...");
+            fetchPlaylist();
+        });
+
+        // --- MEDIA PLAYER LOGIC ---
+
+        function fetchPlaylist() {
+            fetch(`${SERVER_URL}/api/playlist/${displayId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        playlist = data.playlist;
+                        currentAdIndex = 0; // Reset to the start
+                        playNextAd();
+                    }
+                })
+                .catch(err => console.error("Could not load playlist:", err));
+        }
+
+        function playNextAd() {
+            const videoEl = document.getElementById('ad-video');
+            const imgEl = document.getElementById('ad-image');
+            const waitingEl = document.getElementById('waiting-msg');
+
+            // Hide everything first
+            videoEl.style.display = 'none';
+            imgEl.style.display = 'none';
+            waitingEl.style.display = 'none';
+
+            // If no ads, show the waiting logo
+            if (playlist.length === 0) {
+                waitingEl.style.display = 'block';
+                return;
+            }
+
+            // Get the current ad
+            const ad = playlist[currentAdIndex];
+            const fullMediaUrl = SERVER_URL + ad.media_url;
+
+            if (ad.media_type === 'video') {
+                videoEl.src = fullMediaUrl;
+                videoEl.style.display = 'block';
+                videoEl.play();
+                
+                // When video ends, go to the next ad
+                videoEl.onended = () => {
+                    currentAdIndex = (currentAdIndex + 1) % playlist.length;
+                    playNextAd();
+                };
+            } 
+            else if (ad.media_type === 'image') {
+                imgEl.src = fullMediaUrl;
+                imgEl.style.display = 'block';
+                
+                // Show image for 8 seconds, then go to the next ad
+                setTimeout(() => {
+                    currentAdIndex = (currentAdIndex + 1) % playlist.length;
+                    playNextAd();
+                }, 8000); 
+            }
+        }
     </script>
 </body>
 </html>
