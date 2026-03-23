@@ -21,12 +21,17 @@ db.serialize(() => {
 
     // 2. NEW: The Playlist Table
     // This stores which ads play on which screen, and in what order.
+   // 2. The Playlist Table (Now with Scheduling!)
     db.run(`CREATE TABLE IF NOT EXISTS playlist_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         display_id INTEGER,
         media_url TEXT,
-        media_type TEXT, -- e.g., 'video' or 'image'
-        play_order INTEGER
+        media_type TEXT,
+        play_order INTEGER,
+        start_date TEXT,
+        end_date TEXT,
+        start_time TEXT,
+        end_time TEXT
     )`);
 });
 
