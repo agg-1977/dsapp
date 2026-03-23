@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Screens</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f9; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .info { flex-grow: 1; }
+        input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; max-width: 200px;}
+        button { padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; }
+        .btn-save { background: #007bff; }
+        .btn-logout { background: #dc3545; }
+    </style>
+</head>
+<body>
+
+    <h2>Manage Showroom Screens</h2>
+    <div id="screen-list">Loading screens...</div>
+
+    <script>
+        // ==========================================
+        // RENDER URL:
+        // ==========================================
+        const SERVER_URL = 'https://digital-sinage.onrender.com'; // Paste your Render URL here!
+
+        function loadScreens() {
+            fetch(SERVER_URL + '/api/displays')
+                .then(res => res.json())
+                .then(data => {
+                    const list = document.getElementById('screen-list');
+                    list.innerHTML = '';
+
+                    if (data.displays.length === 0) {
+                        list.innerHTML = '<p>No screens currently paired.</p>';
+                        return;
+                    }
+
+                    data.displays.forEach(display => {
+                        const defaultName = display.display_name || `Screen ID: ${display.id}`;
+                        
+                        list.innerHTML += `
+                            <div class="card">
+                                <div class="info">
+                                    <strong>Status:</strong> 🟢 Online<br>
+                                    <small>ID: ${display.id}</small>
+                                </div>
+                                <div>
+                                    <input type="text" id="name-${display.id}" value="${defaultName}" placeholder="e.g. Main Counter">
+                                    <button class="btn-save" onclick="renameScreen(${display.id})">Save Name</button>
+                                </div>
+                                <button class="btn-logout" onclick="logoutScreen(${display.id})">Logout Screen</button>
+                            </div>
+                        `;
+                    });
+                });
+        }
+
+        function renameScreen(id) {
+            const newName = document.getElementById(`name-${id}`).value;
+            fetch(SERVER_URL + '/api/rename-display', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ displayId: id, newName: newName })
+            }).then(() => alert('Name saved!'));
+        }
+
+        function logoutScreen(id) {
+            if(confirm("Are you sure you want to unpair this screen? It will delete its playlist and return to the QR code.")) {
+                fetch(SERVER_URL + '/api/unpair-display', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ displayId: id })
+                }).then(() => loadScreens()); // Reload the list
+            }
+        }
+
+        window.onload = loadScreens;
+    </script>
+</body>
+</html>
