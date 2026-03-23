@@ -31,7 +31,11 @@ const storage = multer.diskStorage({
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
-const upload = multer({ storage: storage });
+// Configure 'multer' with a 500MB file size limit for large videos
+const upload = multer({ 
+    storage: storage,
+    limits: { fileSize: 500 * 1024 * 1024 } // 500 MB limit
+});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
