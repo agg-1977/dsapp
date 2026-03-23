@@ -8,20 +8,31 @@
         body { font-family: sans-serif; background: #f4f4f9; padding: 20px; max-width: 600px; margin: 0 auto; color: #333; }
         h1 { text-align: center; color: #2c3e50; font-size: 1.8rem; margin-bottom: 30px; }
         h2 { font-size: 1.2rem; color: #444; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-top: 0;}
+        
         .section-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
-        select, input[type="file"], input[type="text"], input[type="date"], input[type="time"] { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+        
+        select, input[type="file"], input[type="text"], input[type="date"], input[type="time"] { 
+            width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; 
+            border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; 
+        }
+        
         button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; width: 100%; }
         button:hover { opacity: 0.9; }
+        
         .btn-upload { background: #28a745; font-size: 1.1rem; }
         .btn-save { background: #007bff; width: auto; flex-grow: 1; }
         .btn-logout { background: #dc3545; width: auto; }
+        
         #upload-status { margin-top: 10px; font-weight: bold; text-align: center; }
+
         .screen-item { background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
         .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .status-dot { color: #28a745; font-size: 0.8rem; }
+        .status-dot { color: #28a745; font-size: 0.8rem; font-weight: bold; }
         .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        
         .nav-links { text-align: center; margin-bottom: 20px; }
-        .nav-links a { color: #007bff; text-decoration: none; font-weight: bold; }
+        .nav-links a { color: #007bff; text-decoration: none; font-weight: bold; font-size: 1.1rem; }
+        
         .flex-row { display: flex; gap: 10px; }
         .flex-col { flex: 1; }
     </style>
@@ -30,10 +41,13 @@
 
     <h1>Ashok Jewellers<br><small style="font-size: 1rem; color: #666;">Digital Signage Command Center</small></h1>
 
-    <div class="nav-links"><a href="admin.html">📷 Pair a New Screen</a></div>
+    <div class="nav-links">
+        <a href="admin.html">📷 Pair a New Screen</a>
+    </div>
 
     <div class="section-card">
         <h2>⬆️ Schedule & Push Ads</h2>
+        
         <label>1. Select Target Screen:</label>
         <select id="displaySelect"><option value="">Loading...</option></select>
 
@@ -41,12 +55,25 @@
         <input type="file" id="mediaFile" accept="video/mp4, image/jpeg, image/png" multiple>
 
         <div class="flex-row">
-            <div class="flex-col"><label>Start Date (Optional)</label><input type="date" id="startDate"></div>
-            <div class="flex-col"><label>End Date (Optional)</label><input type="date" id="endDate"></div>
+            <div class="flex-col">
+                <label>Start Date (Optional)</label>
+                <input type="date" id="startDate">
+            </div>
+            <div class="flex-col">
+                <label>End Date (Optional)</label>
+                <input type="date" id="endDate">
+            </div>
         </div>
+
         <div class="flex-row">
-            <div class="flex-col"><label>Start Time (Optional)</label><input type="time" id="startTime"></div>
-            <div class="flex-col"><label>End Time (Optional)</label><input type="time" id="endTime"></div>
+            <div class="flex-col">
+                <label>Start Time (Optional)</label>
+                <input type="time" id="startTime">
+            </div>
+            <div class="flex-col">
+                <label>End Time (Optional)</label>
+                <input type="time" id="endTime">
+            </div>
         </div>
 
         <button class="btn-upload" onclick="uploadAd()">Push to Screen</button>
@@ -64,23 +91,30 @@
         // ==========================================
         const SERVER_URL = 'https://digital-sinage.onrender.com'; 
 
+        // Load paired screens into the dropdown and management list
         function loadDashboardData() {
             fetch(SERVER_URL + '/api/displays')
                 .then(res => res.json())
                 .then(data => {
                     const select = document.getElementById('displaySelect');
                     const list = document.getElementById('screen-list');
-                    select.innerHTML = ''; list.innerHTML = '';
+                    
+                    select.innerHTML = '';
+                    list.innerHTML = '';
 
                     if (data.displays.length === 0) {
                         select.innerHTML = '<option value="">No screens paired</option>';
-                        list.innerHTML = '<p style="color: #666; text-align: center;">No screens are currently linked.</p>';
+                        list.innerHTML = '<p style="color: #666; text-align: center;">No screens are currently linked. Click "Pair a New Screen" above.</p>';
                         return;
                     }
 
                     data.displays.forEach(display => {
                         const displayName = display.display_name ? display.display_name : `Screen ${display.id}`;
+                        
+                        // Add to Upload Dropdown
                         select.innerHTML += `<option value="${display.id}">${displayName}</option>`;
+
+                        // Add to Management List
                         list.innerHTML += `
                             <div class="screen-item">
                                 <div class="screen-header">
@@ -88,29 +122,33 @@
                                     <span class="status-dot">🟢 Online (ID: ${display.id})</span>
                                 </div>
                                 <div class="action-row">
-                                    <input type="text" id="name-${display.id}" value="${display.display_name || ''}" placeholder="Rename (e.g., Ring Counter)">
+                                    <input type="text" id="name-${display.id}" value="${display.display_name || ''}" placeholder="Rename (e.g., Main Counter)">
                                     <button class="btn-save" onclick="renameScreen(${display.id})">Save</button>
                                     <button class="btn-logout" onclick="logoutScreen(${display.id})">Logout</button>
                                 </div>
                             </div>
                         `;
                     });
-                });
+                })
+                .catch(err => console.error("Error loading dashboard", err));
         }
 
-       function uploadAd() {
+        // Handle large video uploads with a progress bar!
+        function uploadAd() {
             const displayId = document.getElementById('displaySelect').value;
             const fileInput = document.getElementById('mediaFile');
             const statusText = document.getElementById('upload-status');
 
             if (!displayId || fileInput.files.length === 0) {
-                statusText.innerText = "❌ Please select a screen and files.";
-                statusText.style.color = "red"; return;
+                statusText.innerText = "❌ Please select a screen and at least one file.";
+                statusText.style.color = "red";
+                return;
             }
 
             statusText.innerText = `⏳ Starting upload... 0%`;
             statusText.style.color = "black";
 
+            // Gather all the form data, including schedules
             const formData = new FormData();
             formData.append('displayId', displayId);
             formData.append('startDate', document.getElementById('startDate').value);
@@ -118,15 +156,16 @@
             formData.append('startTime', document.getElementById('startTime').value);
             formData.append('endTime', document.getElementById('endTime').value);
 
+            // Append all selected files
             for (let i = 0; i < fileInput.files.length; i++) {
                 formData.append('mediaFiles', fileInput.files[i]);
             }
 
-            // Create a new request that can track upload progress!
+            // Create an XMLHttpRequest to track the upload progress
             const xhr = new XMLHttpRequest();
             xhr.open('POST', SERVER_URL + '/api/upload', true);
 
-            // TRACK PROGRESS: Update the text with the live percentage
+            // Update the progress text automatically
             xhr.upload.onprogress = function(event) {
                 if (event.lengthComputable) {
                     const percentComplete = Math.round((event.loaded / event.total) * 100);
@@ -134,55 +173,61 @@
                 }
             };
 
-            // WHEN FINISHED:
+            // When the server responds
             xhr.onload = function() {
                 if (xhr.status === 200) {
                     const data = JSON.parse(xhr.responseText);
                     if (data.success) {
                         statusText.innerText = "✅ " + data.message;
                         statusText.style.color = "green";
-                        fileInput.value = ""; 
+                        fileInput.value = ""; // Clear the file inputs
+                        
+                        // Clear the success message after 5 seconds
                         setTimeout(() => { statusText.innerText = ""; }, 5000);
                     } else {
                         statusText.innerText = "❌ Error: " + data.message;
                         statusText.style.color = "red";
                     }
                 } else {
-                    statusText.innerText = "❌ Server Error. File might be too large for free tier.";
+                    statusText.innerText = "❌ Server Error. Video might be too large or took too long.";
                     statusText.style.color = "red";
                 }
             };
 
+            // If the network drops
             xhr.onerror = function() {
                 statusText.innerText = "❌ Network Error. Check your connection.";
                 statusText.style.color = "red";
             };
 
+            // Send it!
             xhr.send(formData);
         }
-            statusText.innerText = `⏳ Uploading ${fileInput.files.length} files...`;
-            statusText.style.color = "black";
 
-           
-        }
-
+        // Rename a screen
         function renameScreen(id) {
             const newName = document.getElementById(`name-${id}`).value;
             fetch(SERVER_URL + '/api/rename-display', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ displayId: id, newName: newName })
-            }).then(() => loadDashboardData());
+            }).then(() => {
+                loadDashboardData(); // Instantly refresh the UI
+            });
         }
 
+        // Unpair a screen
         function logoutScreen(id) {
-            if(confirm("Are you sure? This will clear the screen's playlist and return it to the QR code.")) {
+            if(confirm("Are you sure you want to logout this screen? It will permanently delete its playlist.")) {
                 fetch(SERVER_URL + '/api/unpair-display', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ displayId: id })
-                }).then(() => loadDashboardData()); 
+                }).then(() => loadDashboardData());
             }
         }
 
+        // Run this function the moment the page opens
         window.onload = loadDashboardData;
     </script>
 </body>
