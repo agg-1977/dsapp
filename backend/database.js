@@ -19,8 +19,11 @@ db.serialize(() => {
         is_paired INTEGER DEFAULT 0
     )`);
 
-    // 2. The Playlist Table (Now with Scheduling!)
-    db.run(`CREATE TABLE IF NOT EXISTS playlist_items (
+    // 🔥 THE FIX: Destroy the old table pulled from GitHub
+    db.run(`DROP TABLE IF EXISTS playlist_items`);
+
+    // 2. Rebuild it with the advanced scheduling columns!
+    db.run(`CREATE TABLE playlist_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         display_id INTEGER,
         media_url TEXT,
