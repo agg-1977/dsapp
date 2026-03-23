@@ -19,9 +19,7 @@ db.serialize(() => {
         is_paired INTEGER DEFAULT 0
     )`);
 
-    // 2. NEW: The Playlist Table
-    // This stores which ads play on which screen, and in what order.
-   // 2. The Playlist Table (Now with Scheduling!)
+    // 2. The Playlist Table (Now with Scheduling!)
     db.run(`CREATE TABLE IF NOT EXISTS playlist_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         display_id INTEGER,
