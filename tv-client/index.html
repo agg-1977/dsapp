@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Digital Signage Player</title>
+    <style>
+        body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #111; color: white; font-family: sans-serif; margin: 0; }
+        #app-container { text-align: center; }
+        #qr-container { background: white; padding: 20px; border-radius: 10px; margin-top: 20px; display: inline-block;}
+        #ad-player { display: none; width: 100vw; height: 100vh; object-fit: cover; }
+    </style>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+    <div id="app-container">
+        <h1>Add this Display</h1>
+        <p>Scan the QR code with your Admin App</p>
+        <div id="qr-container"></div>
+        <h2 id="pairing-text">Loading...</h2>
+    </div>
+
+    <video id="ad-player" autoplay loop muted>
+        <source src="" type="video/mp4">
+    </video>
+
+    <script>
+        // Connect to your Node.js backend
+        const socket = io('http://localhost:3000'); 
+        
+        const appContainer = document.getElementById('app-container');
+        const adPlayer = document.getElementById('ad-player');
+        const pairingText = document.getElementById('pairing-text');
+        const qrContainer = document.getElementById('qr-container');
+
+        // Listen for the pairing code from the server
+        socket.on('pairing_code', (data) => {
+            pairingText.innerText = `Code: ${data.code}`;
+            qrContainer.innerHTML = ''; // Clear old QR
+            
+            // Generate the visual QR code containing the pairing string
+            new QRCode(qrContainer, {
+                text: data.code,
+                width: 200,
+                height: 200
+            });
+        });
+
+        // Listen for the success message when the mobile app scans it
+        socket.on('paired_success', (data) => {
+            console.log('Paired!', data);
+            
+            // 1. Hide the QR code screen
+            appContainer.style.display = 'none';
+            
+            // 2. Show the media player and start playing ads
+            adPlayer.style.display = 'block';
+            
+            // In a real app, you would now fetch the ad schedule from the database using data.displayId
+            adPlayer.src = 'https://www.w3schools.com/html/mov_bbb.mp4'; // Example video
+        });
+    </script>
+</body>
+</html>
