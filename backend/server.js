@@ -114,6 +114,42 @@ app.get('/api/playlist/:displayId', (req, res) => {
     });
 });
 
+// --- NEW MANAGEMENT APIs ---
+
+// 1. Silent Reconnect for refreshed TVs
+app.post('/api/reconnect', (req, res) => {
+    const { displayId, socketId } = req.body;
+    db.run(`UPDATE displays SET socket_id = ? WHERE id = ?`, [socketId, displayId], (err) => {
+        res.json({ success: !err });
+    });
+});
+
+// 2. Rename a display (e.g., "Phaltan Entrance TV")
+app.post('/api/rename-display', (req, res) => {
+    const { displayId, newName } = req.body;
+    db.run(`UPDATE displays SET display_name = ? WHERE id = ?`, [newName, displayId], (err) => {
+        res.json({ success: !err });
+    });
+});
+
+// 3. Unpair / Logout a TV
+app.post('/api/unpair-display', (req, res) => {
+    const { displayId } = req.body;
+    
+    // Find the TV's current connection and tell it to logout
+    db.get(`SELECT socket_id FROM displays WHERE id = ?`, [displayId], (err, display) => {
+        if (display && display.socket_id) {
+            io.to(display.socket_id).emit('force_logout');
+        }
+        
+        // Delete it from the database and wipe its playlist
+        db.run(`DELETE FROM displays WHERE id = ?`, [displayId], () => {
+            db.run(`DELETE FROM playlist_items WHERE display_id = ?`, [displayId]);
+            res.json({ success: true, message: "Screen logged out successfully." });
+        });
+    });
+});
+
 server.listen(3000, () => {
     console.log('Signage Server running on port 3000');
 });
