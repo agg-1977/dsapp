@@ -41,55 +41,71 @@
 
     <script>
         // ==========================================
-        // PASTE YOUR RENDER URL RIGHT HERE:
+        // RENDER URL:
         // ==========================================
-        const SERVER_URL = 'https://digital-sinage.onrender.com';
+        const SERVER_URL = 'https://YOUR-RENDER-URL.onrender.com'; // Paste your Render URL here!
         
-        let displayId = null;
+        // 1. Check the TV's memory for a saved ID
+        let displayId = localStorage.getItem('signage_display_id');
         let playlist = [];
         let currentAdIndex = 0;
 
-        // Connect to your live Render server!
         const socket = io(SERVER_URL);
 
-        // 1. Server sends the pairing code
-        socket.on('pairing_code', (data) => {
-            document.getElementById('code-text').innerText = "Code: " + data.code;
-            document.getElementById('qrcode').innerHTML = ""; 
-            new QRCode(document.getElementById("qrcode"), {
-                text: data.code,
-                width: 250,
-                height: 250
-            });
+        // 2. When the TV connects to the server
+        socket.on('connect', () => {
+            if (displayId) {
+                // TV REMEMBERS! Skip the QR code and silently reconnect
+                document.getElementById('pairing-screen').style.display = 'none';
+                document.getElementById('media-screen').style.display = 'flex';
+                
+                fetch(`${SERVER_URL}/api/reconnect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ displayId: displayId, socketId: socket.id })
+                }).then(() => fetchPlaylist());
+            }
         });
 
-        // 2. Phone successfully pairs the screen
+        // 3. Server sends pairing code (Only show if TV has no memory)
+        socket.on('pairing_code', (data) => {
+            if (!displayId) {
+                document.getElementById('code-text').innerText = "Code: " + data.code;
+                document.getElementById('qrcode').innerHTML = ""; 
+                new QRCode(document.getElementById("qrcode"), { text: data.code, width: 250, height: 250 });
+            }
+        });
+
+        // 4. Phone successfully pairs the screen
         socket.on('paired_success', (data) => {
             displayId = data.displayId;
+            // SAVE TO MEMORY SO IT SURVIVES REFRESHES!
+            localStorage.setItem('signage_display_id', displayId); 
+            
             document.getElementById('pairing-screen').style.display = 'none';
             document.getElementById('media-screen').style.display = 'flex';
-            fetchPlaylist(); // Immediately look for ads
-        });
-
-        // 3. Phone uploaded a new ad! Server says to refresh.
-        socket.on('update_playlist', () => {
-            console.log("New ad received! Refreshing playlist...");
             fetchPlaylist();
         });
 
-        // --- MEDIA PLAYER LOGIC ---
+        // 5. Admin clicks "Logout" from their phone
+        socket.on('force_logout', () => {
+            localStorage.removeItem('signage_display_id'); // Wipe memory
+            location.reload(); // Restart the screen to show QR code
+        });
 
+        socket.on('update_playlist', () => fetchPlaylist());
+
+        // --- MEDIA PLAYER LOGIC ---
         function fetchPlaylist() {
             fetch(`${SERVER_URL}/api/playlist/${displayId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         playlist = data.playlist;
-                        currentAdIndex = 0; // Reset to the start
+                        currentAdIndex = 0;
                         playNextAd();
                     }
-                })
-                .catch(err => console.error("Could not load playlist:", err));
+                }).catch(err => console.error(err));
         }
 
         function playNextAd() {
@@ -97,37 +113,29 @@
             const imgEl = document.getElementById('ad-image');
             const waitingEl = document.getElementById('waiting-msg');
 
-            // Hide everything first
             videoEl.style.display = 'none';
             imgEl.style.display = 'none';
             waitingEl.style.display = 'none';
 
-            // If no ads, show the waiting logo
             if (playlist.length === 0) {
                 waitingEl.style.display = 'block';
                 return;
             }
 
-            // Get the current ad
             const ad = playlist[currentAdIndex];
             const fullMediaUrl = SERVER_URL + ad.media_url;
 
             if (ad.media_type === 'video') {
                 videoEl.src = fullMediaUrl;
                 videoEl.style.display = 'block';
-                videoEl.play();
-                
-                // When video ends, go to the next ad
+                videoEl.play().catch(e => console.log("Autoplay blocked, waiting for interaction"));
                 videoEl.onended = () => {
                     currentAdIndex = (currentAdIndex + 1) % playlist.length;
                     playNextAd();
                 };
-            } 
-            else if (ad.media_type === 'image') {
+            } else if (ad.media_type === 'image') {
                 imgEl.src = fullMediaUrl;
                 imgEl.style.display = 'block';
-                
-                // Show image for 8 seconds, then go to the next ad
                 setTimeout(() => {
                     currentAdIndex = (currentAdIndex + 1) % playlist.length;
                     playNextAd();
@@ -135,5 +143,3 @@
             }
         }
     </script>
-</body>
-</html>
