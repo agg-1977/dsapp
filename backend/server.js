@@ -21,7 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 // Tell the server to let TVs access the files inside the 'uploads' folder
 app.use('/uploads', express.static('uploads'));
 
-// Configure how 'multer' saves the files
+// Configure 'multer' with a 500MB file size limit for large videos
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/');
@@ -31,7 +31,6 @@ const storage = multer.diskStorage({
         cb(null, Date.now() + path.extname(file.originalname));
     }
 });
-// Configure 'multer' with a 500MB file size limit for large videos
 const upload = multer({ 
     storage: storage,
     limits: { fileSize: 500 * 1024 * 1024 } // 500 MB limit
@@ -78,7 +77,7 @@ app.get('/api/displays', (req, res) => {
     });
 });
 
-// 3. NEW: Upload Multiple Ads & Schedule Them
+// 3. Upload Multiple Ads & Schedule Them
 app.post('/api/upload', upload.array('mediaFiles', 20), (req, res) => {
     const { displayId, startDate, endDate, startTime, endTime } = req.body;
     
@@ -119,6 +118,32 @@ app.get('/api/playlist/:displayId', (req, res) => {
     });
 });
 
+// 5. NEW: Delete a specific ad from the playlist
+app.delete('/api/playlist/:itemId', (req, res) => {
+    const itemId = req.params.itemId;
+    
+    // First, find out which screen this ad belongs to so we can tell it to refresh
+    db.get(`SELECT display_id FROM playlist_items WHERE id = ?`, [itemId], (err, row) => {
+        if (err || !row) return res.status(400).json({ success: false, message: 'Item not found' });
+        
+        const displayId = row.display_id;
+        
+        // Delete the ad from the database
+        db.run(`DELETE FROM playlist_items WHERE id = ?`, [itemId], (deleteErr) => {
+            if (deleteErr) return res.status(500).json({ success: false });
+            
+            // Instantly tell that specific TV to update its playlist!
+            db.get(`SELECT socket_id FROM displays WHERE id = ?`, [displayId], (err, display) => {
+                if (display && display.socket_id) {
+                    io.to(display.socket_id).emit('update_playlist');
+                }
+            });
+            
+            res.json({ success: true, message: 'Ad deleted successfully.' });
+        });
+    });
+});
+
 // --- MANAGEMENT APIs ---
 
 // 1. Silent Reconnect for refreshed TVs
@@ -155,7 +180,7 @@ app.post('/api/unpair-display', (req, res) => {
     });
 });
 
-// FIXED: Let Render choose the port so it doesn't crash!
+// Let Render choose the port so it doesn't crash
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Signage Server running on port ${PORT}`);
