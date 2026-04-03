@@ -1,12 +1,8 @@
-// database.js
 const sqlite3 = require('sqlite3').verbose();
 
 const db = new sqlite3.Database('./signage.db', (err) => {
-    if (err) {
-        console.error("Database error:", err.message);
-    } else {
-        console.log("Connected to the local SQLite database.");
-    }
+    if (err) console.error("Database error:", err.message);
+    else console.log("Connected to the local SQLite database.");
 });
 
 db.serialize(() => {
@@ -19,10 +15,10 @@ db.serialize(() => {
         is_paired INTEGER DEFAULT 0
     )`);
 
-    // 🔥 THE FIX: Destroy the old table pulled from GitHub
+    // 🔥 Wipes the old table on Render boot-up to prevent version conflicts
     db.run(`DROP TABLE IF EXISTS playlist_items`);
 
-    // 2. Rebuild it with the advanced scheduling columns!
+    // 2. The Playlist Table (With Advanced Scheduling)
     db.run(`CREATE TABLE playlist_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         display_id INTEGER,
