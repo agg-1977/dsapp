@@ -8,39 +8,26 @@
         body { font-family: sans-serif; background: #f4f4f9; padding: 20px; max-width: 600px; margin: 0 auto; color: #333; }
         h1 { text-align: center; color: #2c3e50; font-size: 1.8rem; margin-bottom: 30px; }
         h2 { font-size: 1.2rem; color: #444; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin-top: 0;}
-        
         .section-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 30px; }
-        
-        select, input[type="file"], input[type="text"], input[type="date"], input[type="time"] { 
-            width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; 
-            border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; 
-        }
-        
+        select, input[type="file"], input[type="text"], input[type="date"], input[type="time"] { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
         button { padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; transition: 0.2s; width: 100%; }
         button:hover { opacity: 0.9; }
-        
         .btn-upload { background: #28a745; font-size: 1.1rem; }
         .btn-save { background: #007bff; width: auto; flex-grow: 1; }
         .btn-logout { background: #dc3545; width: auto; }
         .btn-delete { background: #dc3545; padding: 5px 10px; font-size: 0.9rem; }
-        
         #upload-status { margin-top: 10px; font-weight: bold; text-align: center; }
-
         .screen-item { background: #fdfdfd; border: 1px solid #eee; padding: 15px; border-radius: 6px; margin-bottom: 15px; }
         .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .status-dot { color: #28a745; font-size: 0.8rem; font-weight: bold; }
         .action-row { display: flex; gap: 10px; flex-wrap: wrap; }
-        
-        /* Playlist Editor Styles */
         .playlist-item { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-bottom: 8px; font-size: 0.9rem;}
         .playlist-info { display: flex; flex-direction: column; gap: 4px; }
         .badge-video { background: #007bff; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.75rem; display: inline-block;}
         .badge-image { background: #17a2b8; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.75rem; display: inline-block;}
         .schedule-text { color: #666; font-size: 0.8rem; }
-
         .nav-links { text-align: center; margin-bottom: 20px; }
         .nav-links a { color: #007bff; text-decoration: none; font-weight: bold; font-size: 1.1rem; }
-        
         .flex-row { display: flex; gap: 10px; }
         .flex-col { flex: 1; }
     </style>
@@ -49,9 +36,7 @@
 
     <h1>Ashok Jewellers<br><small style="font-size: 1rem; color: #666;">Digital Signage Command Center</small></h1>
 
-    <div class="nav-links">
-        <a href="admin.html">📷 Pair a New Screen</a>
-    </div>
+    <div class="nav-links"><a href="admin.html">📷 Pair a New Screen</a></div>
 
     <div class="section-card">
         <h2>⬆️ Schedule & Push Ads</h2>
@@ -78,7 +63,6 @@
         <h2>📝 Edit Screen Playlists</h2>
         <label>Select Screen to View/Edit Ads:</label>
         <select id="editSelect" onchange="loadPlaylistEditor()"><option value="">Select a screen...</option></select>
-        
         <div id="playlist-container" style="margin-top: 15px;">
             <p style="color: #666; text-align: center; font-size: 0.9rem;">Select a screen above to view its active ads.</p>
         </div>
@@ -95,202 +79,99 @@
         // ==========================================
         const SERVER_URL = 'https://digital-sinage.onrender.com'; 
 
-        // Load paired screens into dropdowns and management list
         function loadDashboardData() {
-            fetch(SERVER_URL + '/api/displays')
-                .then(res => res.json())
-                .then(data => {
-                    const select = document.getElementById('displaySelect');
-                    const editSelect = document.getElementById('editSelect');
-                    const list = document.getElementById('screen-list');
-                    
-                    select.innerHTML = '';
-                    list.innerHTML = '';
-                    
-                    // Keep the default "Select a screen..." option for the editor dropdown
-                    editSelect.innerHTML = '<option value="">Select a screen...</option>';
+            fetch(SERVER_URL + '/api/displays').then(res => res.json()).then(data => {
+                const select = document.getElementById('displaySelect'), editSelect = document.getElementById('editSelect'), list = document.getElementById('screen-list');
+                select.innerHTML = ''; list.innerHTML = ''; editSelect.innerHTML = '<option value="">Select a screen...</option>';
 
-                    if (data.displays.length === 0) {
-                        select.innerHTML = '<option value="">No screens paired</option>';
-                        list.innerHTML = '<p style="color: #666; text-align: center;">No screens are currently linked. Click "Pair a New Screen" above.</p>';
-                        return;
-                    }
+                if (data.displays.length === 0) {
+                    select.innerHTML = '<option value="">No screens paired</option>';
+                    list.innerHTML = '<p style="color: #666; text-align: center;">No screens paired.</p>'; return;
+                }
 
-                    data.displays.forEach(display => {
-                        const displayName = display.display_name ? display.display_name : `Screen ${display.id}`;
-                        
-                        // Add to Dropdowns
-                        select.innerHTML += `<option value="${display.id}">${displayName}</option>`;
-                        editSelect.innerHTML += `<option value="${display.id}">${displayName}</option>`;
-
-                        // Add to Management List
-                        list.innerHTML += `
-                            <div class="screen-item">
-                                <div class="screen-header">
-                                    <strong>${displayName}</strong>
-                                    <span class="status-dot">🟢 Online (ID: ${display.id})</span>
-                                </div>
-                                <div class="action-row">
-                                    <input type="text" id="name-${display.id}" value="${display.display_name || ''}" placeholder="Rename (e.g., Main Counter)">
-                                    <button class="btn-save" onclick="renameScreen(${display.id})">Save</button>
-                                    <button class="btn-logout" onclick="logoutScreen(${display.id})">Logout</button>
-                                </div>
+                data.displays.forEach(display => {
+                    const name = display.display_name || `Screen ${display.id}`;
+                    select.innerHTML += `<option value="${display.id}">${name}</option>`;
+                    editSelect.innerHTML += `<option value="${display.id}">${name}</option>`;
+                    list.innerHTML += `
+                        <div class="screen-item">
+                            <div class="screen-header"><strong>${name}</strong><span class="status-dot">🟢 Online (ID: ${display.id})</span></div>
+                            <div class="action-row">
+                                <input type="text" id="name-${display.id}" value="${display.display_name || ''}" placeholder="Rename (e.g., Main Counter)">
+                                <button class="btn-save" onclick="renameScreen(${display.id})">Save</button>
+                                <button class="btn-logout" onclick="logoutScreen(${display.id})">Logout</button>
                             </div>
-                        `;
-                    });
-                })
-                .catch(err => console.error("Error loading dashboard", err));
+                        </div>`;
+                });
+            });
         }
 
-        // --- NEW: PLAYLIST EDITOR LOGIC ---
-        
-        // Fetch and display the playlist when a screen is selected
         function loadPlaylistEditor() {
-            const displayId = document.getElementById('editSelect').value;
-            const container = document.getElementById('playlist-container');
-            
-            if (!displayId) {
-                container.innerHTML = '<p style="color: #666; text-align: center; font-size: 0.9rem;">Select a screen above to view its active ads.</p>';
-                return;
-            }
+            const displayId = document.getElementById('editSelect').value, container = document.getElementById('playlist-container');
+            if (!displayId) { container.innerHTML = '<p style="color: #666; text-align: center; font-size: 0.9rem;">Select a screen above.</p>'; return; }
 
             container.innerHTML = '<i>Loading playlist...</i>';
-
-            fetch(`${SERVER_URL}/api/playlist/${displayId}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (!data.success || data.playlist.length === 0) {
-                        container.innerHTML = '<p style="color: #666; text-align: center;">This screen has no ads uploaded.</p>';
-                        return;
-                    }
-
-                    container.innerHTML = ''; // Clear loading text
-                    
-                    data.playlist.forEach(ad => {
-                        const badgeClass = ad.media_type === 'video' ? 'badge-video' : 'badge-image';
-                        const filename = ad.media_url.split('/').pop(); // Extract just the filename for display
-                        
-                        // Format the schedule text nicely
-                        let scheduleText = "Plays Always";
-                        if (ad.start_date || ad.start_time) {
-                            scheduleText = `Scheduled: ${ad.start_date || 'Any Day'} ${ad.start_time || ''} to ${ad.end_date || 'Forever'} ${ad.end_time || ''}`;
-                        }
-
-                        container.innerHTML += `
-                            <div class="playlist-item">
-                                <div class="playlist-info">
-                                    <div><span class="${badgeClass}">${ad.media_type.toUpperCase()}</span> <strong>${filename.substring(0, 15)}...</strong></div>
-                                    <div class="schedule-text">🕒 ${scheduleText}</div>
-                                </div>
-                                <button class="btn-delete" onclick="deleteAd(${ad.id})">🗑️</button>
+            fetch(`${SERVER_URL}/api/playlist/${displayId}`).then(res => res.json()).then(data => {
+                if (!data.success || data.playlist.length === 0) { container.innerHTML = '<p style="color: #666; text-align: center;">No ads uploaded.</p>'; return; }
+                container.innerHTML = '';
+                data.playlist.forEach(ad => {
+                    const badgeClass = ad.media_type === 'video' ? 'badge-video' : 'badge-image';
+                    let schedule = "Plays Always";
+                    if (ad.start_date || ad.start_time) schedule = `Scheduled: ${ad.start_date||'Any Day'} ${ad.start_time||''} to ${ad.end_date||'Forever'} ${ad.end_time||''}`;
+                    container.innerHTML += `
+                        <div class="playlist-item">
+                            <div class="playlist-info">
+                                <div><span class="${badgeClass}">${ad.media_type.toUpperCase()}</span> <strong>${ad.media_url.split('/').pop().substring(0, 15)}...</strong></div>
+                                <div class="schedule-text">🕒 ${schedule}</div>
                             </div>
-                        `;
-                    });
+                            <button class="btn-delete" onclick="deleteAd(${ad.id})">🗑️</button>
+                        </div>`;
                 });
+            });
         }
 
-        // Delete a specific ad
-        function deleteAd(itemId) {
-            if(confirm("Are you sure you want to delete this ad? It will instantly disappear from the TV.")) {
-                fetch(`${SERVER_URL}/api/playlist/${itemId}`, { method: 'DELETE' })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        loadPlaylistEditor(); // Refresh the visual list
-                    } else {
-                        alert("Error deleting ad.");
-                    }
-                });
+        function deleteAd(id) {
+            if(confirm("Delete this ad? It will instantly disappear from the TV.")) {
+                fetch(`${SERVER_URL}/api/playlist/${id}`, { method: 'DELETE' }).then(() => loadPlaylistEditor());
             }
         }
 
-        // --- UPLOAD LOGIC ---
         function uploadAd() {
-            const displayId = document.getElementById('displaySelect').value;
-            const fileInput = document.getElementById('mediaFile');
-            const statusText = document.getElementById('upload-status');
+            const displayId = document.getElementById('displaySelect').value, fileInput = document.getElementById('mediaFile'), statusText = document.getElementById('upload-status');
+            if (!displayId || fileInput.files.length === 0) { statusText.innerText = "❌ Select a screen and files."; statusText.style.color = "red"; return; }
 
-            if (!displayId || fileInput.files.length === 0) {
-                statusText.innerText = "❌ Please select a screen and at least one file.";
-                statusText.style.color = "red"; return;
-            }
-
-            statusText.innerText = `⏳ Starting upload... 0%`;
-            statusText.style.color = "black";
-
+            statusText.innerText = `⏳ Uploading... 0%`; statusText.style.color = "black";
             const formData = new FormData();
             formData.append('displayId', displayId);
             formData.append('startDate', document.getElementById('startDate').value);
             formData.append('endDate', document.getElementById('endDate').value);
             formData.append('startTime', document.getElementById('startTime').value);
             formData.append('endTime', document.getElementById('endTime').value);
-
-            for (let i = 0; i < fileInput.files.length; i++) {
-                formData.append('mediaFiles', fileInput.files[i]);
-            }
+            for (let i = 0; i < fileInput.files.length; i++) formData.append('mediaFiles', fileInput.files[i]);
 
             const xhr = new XMLHttpRequest();
             xhr.open('POST', SERVER_URL + '/api/upload', true);
-
-            xhr.upload.onprogress = function(event) {
-                if (event.lengthComputable) {
-                    const percentComplete = Math.round((event.loaded / event.total) * 100);
-                    statusText.innerText = `⏳ Uploading... ${percentComplete}%`;
-                }
-            };
-
+            xhr.upload.onprogress = e => { if (e.lengthComputable) statusText.innerText = `⏳ Uploading... ${Math.round((e.loaded / e.total) * 100)}%`; };
             xhr.onload = function() {
-                if (xhr.status === 200) {
-                    const data = JSON.parse(xhr.responseText);
-                    if (data.success) {
-                        statusText.innerText = "✅ " + data.message;
-                        statusText.style.color = "green";
-                        fileInput.value = ""; 
-                        
-                        // If they are currently looking at the playlist for the screen they just uploaded to, refresh it!
-                        if (document.getElementById('editSelect').value === displayId) {
-                            loadPlaylistEditor();
-                        }
-
-                        setTimeout(() => { statusText.innerText = ""; }, 5000);
-                    } else {
-                        statusText.innerText = "❌ Error: " + data.message;
-                        statusText.style.color = "red";
-                    }
-                } else {
-                    statusText.innerText = "❌ Server Error.";
-                    statusText.style.color = "red";
-                }
-            };
-            xhr.onerror = function() {
-                statusText.innerText = "❌ Network Error.";
-                statusText.style.color = "red";
+                if (xhr.status === 200 && JSON.parse(xhr.responseText).success) {
+                    statusText.innerText = "✅ Upload Successful!"; statusText.style.color = "green"; fileInput.value = "";
+                    if (document.getElementById('editSelect').value === displayId) loadPlaylistEditor();
+                    setTimeout(() => { statusText.innerText = ""; }, 5000);
+                } else { statusText.innerText = "❌ Server Error."; statusText.style.color = "red"; }
             };
             xhr.send(formData);
         }
 
-        // --- MANAGEMENT LOGIC ---
         function renameScreen(id) {
-            const newName = document.getElementById(`name-${id}`).value;
-            fetch(SERVER_URL + '/api/rename-display', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ displayId: id, newName: newName })
-            }).then(() => loadDashboardData());
+            fetch(SERVER_URL + '/api/rename-display', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayId: id, newName: document.getElementById(`name-${id}`).value }) }).then(() => loadDashboardData());
         }
 
         function logoutScreen(id) {
-            if(confirm("Are you sure you want to logout this screen? It will permanently delete its playlist.")) {
-                fetch(SERVER_URL + '/api/unpair-display', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ displayId: id })
-                }).then(() => {
-                    loadDashboardData();
-                    document.getElementById('playlist-container').innerHTML = '<p style="color: #666; text-align: center; font-size: 0.9rem;">Select a screen above to view its active ads.</p>';
-                });
+            if(confirm("Logout this screen? It will permanently delete its playlist.")) {
+                fetch(SERVER_URL + '/api/unpair-display', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ displayId: id }) }).then(() => { loadDashboardData(); document.getElementById('playlist-container').innerHTML = ''; });
             }
         }
 
-        // Run when page opens
         window.onload = loadDashboardData;
     </script>
 </body>
