@@ -7,60 +7,115 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: black; overflow: hidden; font-family: sans-serif; color: white; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: black; overflow: hidden; font-family: sans-serif; color: white; }
+        
+        /* 🔥 The Rotation Wrapper 🔥 */
+        #master-wrapper { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
+        #app-container { transform-origin: center center; transition: transform 0.3s ease-in-out; }
+
         #pairing-screen { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; background: #1a1a2e; }
         #qrcode { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         h1 { font-size: 3rem; margin: 0; text-align: center; }
         p { font-size: 1.5rem; color: #aaa; margin-top: 10px; }
-        #media-screen { display: none; width: 100%; height: 100%; justify-content: center; align-items: center; background: black; }
         
-        /* 🔥 FULL SCREEN STRETCH FIX 🔥 */
+        #media-screen { display: none; width: 100%; height: 100%; justify-content: center; align-items: center; background: black; flex-direction: column;}
         #ad-video, #ad-image { width: 100%; height: 100%; display: none; object-fit: cover; }
+        #waiting-msg { display: none; font-size: 2.5rem; color: #888; text-align: center; line-height: 1.5; padding: 20px; }
         
-        #waiting-msg { display: none; font-size: 2.5rem; color: #888; text-align: center; line-height: 1.5; }
+        /* Utility Buttons */
+        .tv-btn { position: absolute; z-index: 9999; border: none; padding: 15px; cursor: pointer; border-radius: 50%; font-size: 20px; opacity: 0.2; transition: opacity 0.3s; }
+        .tv-btn:hover { opacity: 1; }
+        #force-reset { top: 10px; right: 10px; background: red; color: white; }
+        #rotate-btn { bottom: 10px; right: 10px; background: #555; color: white; }
     </style>
 </head>
 <body>
 
-    <div id="pairing-screen">
-        <div id="qrcode"></div>
-        <h1>Ashok Jewellers</h1>
-        <p id="code-text">Connecting to server...</p>
-    </div>
+    <div id="master-wrapper">
+        
+        <button id="force-reset" class="tv-btn" onclick="manualReset()" title="Reset Screen Memory">⚙️</button>
+        <button id="rotate-btn" class="tv-btn" onclick="rotateScreen()" title="Rotate Screen 90°">🔄</button>
 
-    <div id="media-screen">
-        <video id="ad-video" autoplay muted></video>
-        <img id="ad-image" src="" alt="Ad">
-        <h2 id="waiting-msg">Ashok Jewellers<br><span style="font-size: 1.5rem;">Awaiting Scheduled Broadcast...</span></h2>
+        <div id="app-container">
+            
+            <div id="pairing-screen">
+                <div id="qrcode"></div>
+                <h1>Ashok Jewellers</h1>
+                <p id="code-text">Connecting to server...</p>
+            </div>
+
+            <div id="media-screen">
+                <video id="ad-video" autoplay muted></video>
+                <img id="ad-image" src="" alt="Ad">
+                <h2 id="waiting-msg">Ashok Jewellers<br><span style="font-size: 1.5rem;" id="sub-msg">Awaiting Scheduled Broadcast...</span></h2>
+            </div>
+
+        </div>
     </div>
 
     <script>
         // ==========================================
         // PASTE YOUR RENDER URL RIGHT HERE:
         // ==========================================
-        const SERVER_URL = 'https://digital-sinage.onrender.com'; 
+        const SERVER_URL = 'https://YOUR-RENDER-URL.onrender.com'; 
         
         let displayId = localStorage.getItem('signage_display_id');
         let playlist = [];
         let currentAdIndex = 0;
 
+        // --- 🔥 NEW ROTATION LOGIC 🔥 ---
+        let currentRotation = parseInt(localStorage.getItem('signage_rotation') || '0');
+
+        function applyRotation() {
+            const app = document.getElementById('app-container');
+            if (currentRotation === 90 || currentRotation === 270) {
+                // Portrait Mode (Swap width and height so it fits)
+                app.style.width = '100vh';
+                app.style.height = '100vw';
+                app.style.position = 'absolute';
+                app.style.top = '50%';
+                app.style.left = '50%';
+                app.style.transform = `translate(-50%, -50%) rotate(${currentRotation}deg)`;
+            } else {
+                // Landscape Mode (Normal or Upside Down)
+                app.style.width = '100vw';
+                app.style.height = '100vh';
+                app.style.position = 'absolute';
+                app.style.top = '50%';
+                app.style.left = '50%';
+                app.style.transform = `translate(-50%, -50%) rotate(${currentRotation}deg)`;
+            }
+        }
+
+        function rotateScreen() {
+            currentRotation = (currentRotation + 90) % 360;
+            localStorage.setItem('signage_rotation', currentRotation.toString());
+            applyRotation();
+        }
+        
+        // Apply saved rotation the moment the page loads
+        applyRotation(); 
+
+
+        // --- STANDARD APP LOGIC ---
+        function manualReset() {
+            localStorage.removeItem('signage_display_id');
+            location.reload();
+        }
+
         const socket = io(SERVER_URL);
 
-        // 🔥 THE AMNESIA FIX (Reboot if server forgets us) 🔥
         socket.on('connect', () => {
             if (displayId) {
                 document.getElementById('pairing-screen').style.display = 'none';
                 document.getElementById('media-screen').style.display = 'flex';
+                
                 fetch(`${SERVER_URL}/api/reconnect`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ displayId: displayId, socketId: socket.id })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.action === 'force_reset') {
-                        localStorage.removeItem('signage_display_id');
-                        location.reload(); 
-                    } else fetchPlaylist();
+                }).then(res => res.json()).then(data => {
+                    if (data.action === 'force_reset') manualReset(); 
+                    else fetchPlaylist();
                 });
             }
         });
@@ -81,11 +136,7 @@
             fetchPlaylist();
         });
 
-        socket.on('force_logout', () => {
-            localStorage.removeItem('signage_display_id'); 
-            location.reload(); 
-        });
-
+        socket.on('force_logout', () => manualReset());
         socket.on('update_playlist', () => fetchPlaylist());
 
         function fetchPlaylist() {
@@ -97,8 +148,8 @@
         }
 
         function isAdActive(ad) {
-            const hasStart = ad.start_date && ad.start_date !== "" && ad.start_date !== "null";
-            const hasTime = ad.start_time && ad.start_time !== "" && ad.start_time !== "null";
+            const hasStart = ad.start_date && ad.start_date !== "" && ad.start_date !== "undefined" && ad.start_date !== "null";
+            const hasTime = ad.start_time && ad.start_time !== "" && ad.start_time !== "undefined" && ad.start_time !== "null";
             if (!hasStart && !hasTime) return true; 
             
             const now = new Date();
@@ -115,6 +166,7 @@
         function playNextAd() {
             const videoEl = document.getElementById('ad-video'), imgEl = document.getElementById('ad-image'), waitingEl = document.getElementById('waiting-msg');
             videoEl.style.display = 'none'; imgEl.style.display = 'none'; waitingEl.style.display = 'none';
+            document.getElementById('sub-msg').innerText = "Awaiting Scheduled Broadcast...";
 
             let activeAd = null, attempts = 0;
             while (attempts < playlist.length) {
@@ -127,13 +179,18 @@
             const url = SERVER_URL + activeAd.media_url;
             if (activeAd.media_type === 'video') {
                 videoEl.src = url; videoEl.style.display = 'block';
-                videoEl.play().catch(e => console.log("Click screen to allow autoplay!"));
+                videoEl.play().catch(e => {
+                    videoEl.style.display = 'none'; waitingEl.style.display = 'block';
+                    document.getElementById('sub-msg').innerHTML = "<span style='color:red;'>⚠️ BROWSER BLOCKED VIDEO ⚠️<br>CLICK ANYWHERE ON THIS SCREEN</span>";
+                });
                 videoEl.onended = () => { currentAdIndex = (currentAdIndex + 1) % playlist.length; playNextAd(); };
             } else {
                 imgEl.src = url; imgEl.style.display = 'block';
                 setTimeout(() => { currentAdIndex = (currentAdIndex + 1) % playlist.length; playNextAd(); }, 8000); 
             }
         }
+
+        document.body.addEventListener('click', () => { if (playlist.length > 0) playNextAd(); });
     </script>
 </body>
 </html>
