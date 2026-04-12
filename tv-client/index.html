@@ -9,20 +9,31 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: black; overflow: hidden; font-family: sans-serif; color: white; }
         
-        /* 🔥 The Rotation Wrapper 🔥 */
         #master-wrapper { width: 100vw; height: 100vh; overflow: hidden; position: relative; }
-        #app-container { transform-origin: center center; transition: transform 0.3s ease-in-out; }
+        #app-container { transform-origin: center center; transition: transform 0.3s ease-in-out; position: relative; }
 
         #pairing-screen { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; background: #1a1a2e; }
         #qrcode { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
         h1 { font-size: 3rem; margin: 0; text-align: center; }
         p { font-size: 1.5rem; color: #aaa; margin-top: 10px; }
         
-        #media-screen { display: none; width: 100%; height: 100%; justify-content: center; align-items: center; background: black; flex-direction: column;}
-        #ad-video, #ad-image { width: 100%; height: 100%; display: none; object-fit: cover; }
-        #waiting-msg { display: none; font-size: 2.5rem; color: #888; text-align: center; line-height: 1.5; padding: 20px; }
+        #media-screen { display: none; width: 100%; height: 100%; justify-content: center; align-items: center; background: black; flex-direction: column; position: relative;}
         
-        /* Utility Buttons */
+        /* 🔥 THE FULL SCREEN FIX 🔥 */
+        #ad-video, #ad-image { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            display: none; 
+            
+            /* Change 'cover' to 'fill' if you want it to stretch the video to the edges even if it makes people look squished */
+            object-fit: cover; 
+        }
+        
+        #waiting-msg { display: none; font-size: 2.5rem; color: #888; text-align: center; line-height: 1.5; padding: 20px; z-index: 10; }
+        
         .tv-btn { position: absolute; z-index: 9999; border: none; padding: 15px; cursor: pointer; border-radius: 50%; font-size: 20px; opacity: 0.2; transition: opacity 0.3s; }
         .tv-btn:hover { opacity: 1; }
         #force-reset { top: 10px; right: 10px; background: red; color: white; }
@@ -32,12 +43,10 @@
 <body>
 
     <div id="master-wrapper">
-        
         <button id="force-reset" class="tv-btn" onclick="manualReset()" title="Reset Screen Memory">⚙️</button>
         <button id="rotate-btn" class="tv-btn" onclick="rotateScreen()" title="Rotate Screen 90°">🔄</button>
 
         <div id="app-container">
-            
             <div id="pairing-screen">
                 <div id="qrcode"></div>
                 <h1>Ashok Jewellers</h1>
@@ -49,7 +58,6 @@
                 <img id="ad-image" src="" alt="Ad">
                 <h2 id="waiting-msg">Ashok Jewellers<br><span style="font-size: 1.5rem;" id="sub-msg">Awaiting Scheduled Broadcast...</span></h2>
             </div>
-
         </div>
     </div>
 
@@ -62,27 +70,22 @@
         let displayId = localStorage.getItem('signage_display_id');
         let playlist = [];
         let currentAdIndex = 0;
+        
+        // 🔥 THE GHOST KILLER 🔥
+        // This variable keeps track of active timers so we can delete them
+        let playbackTimer = null; 
 
-        // --- 🔥 NEW ROTATION LOGIC 🔥 ---
         let currentRotation = parseInt(localStorage.getItem('signage_rotation') || '0');
 
         function applyRotation() {
             const app = document.getElementById('app-container');
             if (currentRotation === 90 || currentRotation === 270) {
-                // Portrait Mode (Swap width and height so it fits)
-                app.style.width = '100vh';
-                app.style.height = '100vw';
-                app.style.position = 'absolute';
-                app.style.top = '50%';
-                app.style.left = '50%';
+                app.style.width = '100vh'; app.style.height = '100vw';
+                app.style.top = '50%'; app.style.left = '50%';
                 app.style.transform = `translate(-50%, -50%) rotate(${currentRotation}deg)`;
             } else {
-                // Landscape Mode (Normal or Upside Down)
-                app.style.width = '100vw';
-                app.style.height = '100vh';
-                app.style.position = 'absolute';
-                app.style.top = '50%';
-                app.style.left = '50%';
+                app.style.width = '100vw'; app.style.height = '100vh';
+                app.style.top = '50%'; app.style.left = '50%';
                 app.style.transform = `translate(-50%, -50%) rotate(${currentRotation}deg)`;
             }
         }
@@ -92,15 +95,32 @@
             localStorage.setItem('signage_rotation', currentRotation.toString());
             applyRotation();
         }
-        
-        // Apply saved rotation the moment the page loads
         applyRotation(); 
 
-
-        // --- STANDARD APP LOGIC ---
         function manualReset() {
             localStorage.removeItem('signage_display_id');
             location.reload();
+        }
+
+        // --- PREVENTING PLAYLIST OVERLAPS ---
+        function stopAllMedia() {
+            // 1. Kill any active image or waiting screen timers
+            if (playbackTimer) {
+                clearTimeout(playbackTimer);
+                playbackTimer = null;
+            }
+            
+            // 2. Kill any currently playing video and remove its "on ended" trigger
+            const videoEl = document.getElementById('ad-video');
+            videoEl.pause();
+            videoEl.removeAttribute('src'); // Stop it from downloading
+            videoEl.onended = null; // Unbind the ghost loop!
+            videoEl.load();
+            
+            // 3. Hide everything
+            videoEl.style.display = 'none';
+            document.getElementById('ad-image').style.display = 'none';
+            document.getElementById('waiting-msg').style.display = 'none';
         }
 
         const socket = io(SERVER_URL);
@@ -109,7 +129,6 @@
             if (displayId) {
                 document.getElementById('pairing-screen').style.display = 'none';
                 document.getElementById('media-screen').style.display = 'flex';
-                
                 fetch(`${SERVER_URL}/api/reconnect`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ displayId: displayId, socketId: socket.id })
@@ -137,13 +156,24 @@
         });
 
         socket.on('force_logout', () => manualReset());
-        socket.on('update_playlist', () => fetchPlaylist());
+        
+        socket.on('update_playlist', () => {
+            console.log("New playlist detected! Resetting player...");
+            fetchPlaylist();
+        });
 
         function fetchPlaylist() {
             fetch(`${SERVER_URL}/api/playlist/${displayId}`)
                 .then(res => res.json())
                 .then(data => {
-                    if (data.success) { playlist = data.playlist; currentAdIndex = 0; playNextAd(); }
+                    if (data.success) { 
+                        playlist = data.playlist; 
+                        currentAdIndex = 0; 
+                        
+                        // Forcefully kill any currently playing ad BEFORE starting the new list
+                        stopAllMedia(); 
+                        playNextAd(); 
+                    }
                 });
         }
 
@@ -164,9 +194,17 @@
         }
 
         function playNextAd() {
+            // Safety Check: Make sure old media is definitely hidden
             const videoEl = document.getElementById('ad-video'), imgEl = document.getElementById('ad-image'), waitingEl = document.getElementById('waiting-msg');
             videoEl.style.display = 'none'; imgEl.style.display = 'none'; waitingEl.style.display = 'none';
             document.getElementById('sub-msg').innerText = "Awaiting Scheduled Broadcast...";
+
+            if (playlist.length === 0) {
+                waitingEl.style.display = 'block';
+                document.getElementById('sub-msg').innerText = "No ads uploaded yet.";
+                playbackTimer = setTimeout(playNextAd, 10000);
+                return;
+            }
 
             let activeAd = null, attempts = 0;
             while (attempts < playlist.length) {
@@ -174,23 +212,45 @@
                 currentAdIndex = (currentAdIndex + 1) % playlist.length; attempts++;
             }
 
-            if (!activeAd) { waitingEl.style.display = 'block'; setTimeout(playNextAd, 10000); return; }
+            if (!activeAd) { 
+                waitingEl.style.display = 'block'; 
+                playbackTimer = setTimeout(playNextAd, 10000); 
+                return; 
+            }
 
             const url = SERVER_URL + activeAd.media_url;
             if (activeAd.media_type === 'video') {
-                videoEl.src = url; videoEl.style.display = 'block';
+                videoEl.src = url; 
+                videoEl.style.display = 'block';
+                
                 videoEl.play().catch(e => {
                     videoEl.style.display = 'none'; waitingEl.style.display = 'block';
                     document.getElementById('sub-msg').innerHTML = "<span style='color:red;'>⚠️ BROWSER BLOCKED VIDEO ⚠️<br>CLICK ANYWHERE ON THIS SCREEN</span>";
                 });
-                videoEl.onended = () => { currentAdIndex = (currentAdIndex + 1) % playlist.length; playNextAd(); };
+                
+                // When video naturally ends, go to the next ad
+                videoEl.onended = () => { 
+                    currentAdIndex = (currentAdIndex + 1) % playlist.length; 
+                    playNextAd(); 
+                };
             } else {
-                imgEl.src = url; imgEl.style.display = 'block';
-                setTimeout(() => { currentAdIndex = (currentAdIndex + 1) % playlist.length; playNextAd(); }, 8000); 
+                imgEl.src = url; 
+                imgEl.style.display = 'block';
+                // Show image for 8 seconds, then trigger the next ad
+                playbackTimer = setTimeout(() => { 
+                    currentAdIndex = (currentAdIndex + 1) % playlist.length; 
+                    playNextAd(); 
+                }, 8000); 
             }
         }
 
-        document.body.addEventListener('click', () => { if (playlist.length > 0) playNextAd(); });
+        document.body.addEventListener('click', () => { 
+            // If user clicks the screen to bypass the autoplay block, restart the loop cleanly
+            if (playlist.length > 0) {
+                stopAllMedia();
+                playNextAd();
+            }
+        });
     </script>
 </body>
 </html>
